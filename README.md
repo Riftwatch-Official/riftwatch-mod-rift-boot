@@ -2,6 +2,8 @@
 
 Client-only early loading screen `rift_boot` of the Riftwatch modpack (Minecraft 1.21.1, NeoForge 21.1.255, FancyModLoader 4.0.45). It replaces the red NeoForge loading window with the fox by the Riftwatch scene of the title screen: the sky shader with the local time of day and the moon phase, the seam and the honeycomb floor, the wordmark and the tagline at their title screen positions, copper progress bars, the memory bar, the last loader messages, the versions and a turning day dial.
 
+All rights reserved; `LICENSE` names the permitted use (the unmodified jar in the Riftwatch modpack and on its Modrinth pages).
+
 It is not a mod. The jar sits in `mods/` and FancyModLoader loads it into its service layer, because `META-INF/services` registers an `ImmediateWindowProvider` and a `GraphicsBootstrapper`. It opens no network channel, so servers never see it.
 
 ## How It Works

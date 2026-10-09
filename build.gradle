@@ -37,6 +37,34 @@ dependencies {
     compileOnly("org.lwjgl:lwjgl-opengl:${lwjgl_version}")
     compileOnly("org.lwjgl:lwjgl-stb:${lwjgl_version}")
     compileOnly("org.slf4j:slf4j-api:${slf4j_version}")
+    compileOnly("cpw.mods:modlauncher:${modlauncher_version}") {
+        transitive = false
+    }
+    compileOnly("net.sf.jopt-simple:jopt-simple:${jopt_version}")
+    compileOnly("cpw.mods:securejarhandler:${securejarhandler_version}") {
+        transitive = false
+    }
+    compileOnly("org.jetbrains:annotations:${annotations_version}")
+    compileOnly("com.google.code.gson:gson:${gson_version}")
+
+    testImplementation("com.google.code.gson:gson:${gson_version}")
+    testImplementation("org.slf4j:slf4j-api:${slf4j_version}")
+    testImplementation(platform("org.junit:junit-bom:${junit_version}"))
+    testImplementation('org.junit.jupiter:junit-jupiter')
+    testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
+
+def bootVersion = project.version.toString()
+
+tasks.named('processResources', ProcessResources) {
+    inputs.property('version', bootVersion)
+    filesMatching('net/riftwatch/boot/update/boot.properties') {
+        expand('version': bootVersion)
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

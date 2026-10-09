@@ -1,0 +1,28 @@
+_version = 4
+
+[common]
+
+	[common.logging]
+
+		[common.logging.warning]
+			showGarbageCollectorWarning = false
+			showModCompatibilityWarningsOnStartup = false
+
+[client]
+
+	[client.advanced]
+
+		[client.advanced.autoUpdater]
+			enableAutoUpdater = false
+
+		[client.advanced.graphics]
+			overrideVanillaGraphicsSettings = false
+
+			[client.advanced.graphics.quality]
+				lodChunkRenderDistanceRadius = 256
+
+			[client.advanced.graphics.fog]
+				farFogStart = "0.0"
+
+			[client.advanced.graphics.culling]
+				overdrawPrevention = "0.4"

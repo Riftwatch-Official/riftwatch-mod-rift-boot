@@ -129,11 +129,15 @@ final class Journal {
 
     boolean canFinish() {
         for (Move move : moves) {
-            if (move.staged() && !Files.exists(staged(move.path())) && !Files.exists(target(move.path()))) {
+            if (move.staged() && !Files.exists(staged(move.path())) && !installed(move)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private boolean installed(Move move) {
+        return Files.exists(target(move.path())) && (!move.backup() || Files.exists(backup(move.path())));
     }
 
     void rollBack() throws IOException {
@@ -166,15 +170,27 @@ final class Journal {
             return Outcome.NONE;
         }
         Journal journal = found.get();
-        if (journal.canFinish()) {
-            journal.execute();
+        try {
+            if (journal.canFinish()) {
+                journal.execute();
+                journal.finish();
+                UpdateLog.LOG.warn("Interrupted update from {} to {} finished", journal.from(), journal.to());
+                return Outcome.FINISHED;
+            }
+            journal.rollBack();
             journal.finish();
-            UpdateLog.LOG.warn("Interrupted update from {} to {} finished", journal.from(), journal.to());
-            return Outcome.FINISHED;
+        } catch (IOException | RuntimeException e) {
+            throw new Stuck("Interrupted update from " + journal.from() + " to " + journal.to() + " could not be finished or undone: " + UpdateException.describe(e), e);
         }
-        journal.rollBack();
-        journal.finish();
         UpdateLog.LOG.warn("Interrupted update from {} to {} rolled back, staging was gone", journal.from(), journal.to());
         return Outcome.ROLLED_BACK;
+    }
+
+    static final class Stuck extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        Stuck(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

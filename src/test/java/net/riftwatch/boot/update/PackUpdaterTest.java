@@ -409,6 +409,83 @@ class PackUpdaterTest {
     }
 
     @Test
+    void missingStagingWithTheOldFileInPlaceRollsBack() throws Exception {
+        write("mods/a.jar", "a-1");
+        write("mods/b.jar", "b-2");
+        write("riftwatch/updater/backup/0.7.5/mods/b.jar", "b-1");
+        new Journal(root, "0.7.5", "0.7.6", List.of(
+                new Journal.Move("mods/a.jar", true, true),
+                new Journal.Move("mods/b.jar", true, true))).write();
+
+        assertEquals(Journal.Outcome.ROLLED_BACK, Journal.recover(root));
+        assertEquals("a-1", read("mods/a.jar"));
+        assertEquals("b-1", read("mods/b.jar"));
+        assertFalse(exists("riftwatch/updater/journal.json"));
+    }
+
+    @Test
+    void failedInstallPutsThePreviousFilesBack() throws Exception {
+        installAsLauncher(v1("apply"));
+        publish(v1("apply"), v2("apply"));
+        Path shaders = root.resolve("shaderpacks");
+        assertTrue(shaders.toFile().setWritable(false));
+        try {
+            updater().run();
+        } finally {
+            assertTrue(shaders.toFile().setWritable(true));
+        }
+
+        assertJar("keep-1", "mods/keep.jar");
+        assertJar("old-1", "mods/old.jar");
+        assertJar("change-1", "mods/change-1.jar");
+        assertFalse(exists("mods/change-2.jar"));
+        assertFalse(exists("mods/new.jar"));
+        assertJar("dis-1", "mods/disabled.jar.disabled");
+        assertJar("player", "mods/player.jar");
+        assertEquals("layout-1", read("config/fancymenu/layout.txt"));
+        assertFalse(exists("shaderpacks/pack-b.zip"));
+        assertEquals("0.7.5", marker());
+        assertFalse(exists("riftwatch/updater/journal.json"));
+        assertFalse(exists("riftwatch/updater/staging"));
+        assertFalse(exited.get());
+        assertTrue(messages.contains("Update failed, starting Riftwatch 0.7.5"), messages::toString);
+
+        messages.clear();
+        updater().run();
+
+        assertJar("change-2", "mods/change-2.jar");
+        assertEquals("shader-b", read("shaderpacks/pack-b.zip"));
+        assertEquals("0.7.6", marker());
+        assertTrue(messages.contains("Riftwatch updated to 0.7.6"), messages::toString);
+    }
+
+    @Test
+    void stuckRecoveryClosesTheGameAndRepairsAtTheNextStart() throws Exception {
+        write("mods/a.jar", "a-1");
+        write("riftwatch/updater/staging/mods/a.jar", "a-2");
+        new Journal(root, "0.7.5", "0.7.6", List.of(new Journal.Move("mods/a.jar", true, true))).write();
+        Path mods = root.resolve("mods");
+        assertTrue(mods.toFile().setWritable(false));
+        try {
+            updater().run();
+        } finally {
+            assertTrue(mods.toFile().setWritable(true));
+        }
+
+        assertTrue(exited.get());
+        assertTrue(exists("riftwatch/updater/journal.json"));
+        assertEquals("a-1", read("mods/a.jar"));
+        assertTrue(messages.stream().anyMatch(text -> text.startsWith("The last Riftwatch update could not be finished or undone.")), messages::toString);
+
+        exited.set(false);
+        updater().run();
+
+        assertFalse(exited.get());
+        assertEquals("a-2", read("mods/a.jar"));
+        assertFalse(exists("riftwatch/updater/journal.json"));
+    }
+
+    @Test
     void sourceKeysFollowModrinthProjectsAndGitHubRepositories() {
         PackArchive.Entry modrinth = entry("mods/create-6.0.10.jar", "https://cdn.modrinth.com/data/LNytGWDc/versions/abc/create-6.0.10.jar");
         PackArchive.Entry modrinthNext = entry("mods/create-6.0.11.jar", "https://cdn.modrinth.com/data/LNytGWDc/versions/def/create-6.0.11.jar");

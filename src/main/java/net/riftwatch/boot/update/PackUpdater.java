@@ -85,7 +85,14 @@ final class PackUpdater {
     }
 
     private void runChecked() throws UpdateException, IOException {
-        Journal.Outcome recovery = Journal.recover(root);
+        Journal.Outcome recovery;
+        try {
+            recovery = Journal.recover(root);
+        } catch (Journal.Stuck stuck) {
+            LOG.error("Riftwatch files are between two versions", stuck);
+            closeGame("The last Riftwatch update could not be finished or undone.");
+            throw new UpdateException(stuck.getMessage(), stuck);
+        }
         if (recovery != Journal.Outcome.NONE) {
             LOG.info("Update journal: {}", recovery.name().toLowerCase(Locale.ROOT));
         }
@@ -154,10 +161,7 @@ final class PackUpdater {
             ensureSpace(plan, target);
             stage(plan, target);
             serviceJars |= stagedServiceJar(plan);
-            Journal journal = journal(plan, target.version());
-            journal.write();
-            journal.execute();
-            journal.finish();
+            install(journal(plan, target.version()));
         }
         settingsStep.run(settings, settingsBase, installedArchive, target);
         new UpdateState(target.version(), bootVersion, plan.files(), plan.playerRemoved()).write(updaterDir);
@@ -457,9 +461,41 @@ final class PackUpdater {
         }
     }
 
+    private void install(Journal journal) throws UpdateException, IOException {
+        journal.write();
+        try {
+            journal.execute();
+        } catch (IOException | RuntimeException failure) {
+            undo(journal, failure);
+            throw new UpdateException("Installing Riftwatch " + journal.to() + " failed, the files of " + journal.from() + " are back: " + UpdateException.describe(failure), failure);
+        }
+        journal.finish();
+    }
+
+    private void undo(Journal journal, Exception failure) throws UpdateException {
+        try {
+            journal.rollBack();
+            journal.finish();
+        } catch (IOException | RuntimeException rollback) {
+            failure.addSuppressed(rollback);
+            LOG.error("Installing Riftwatch {} failed and could not be undone", journal.to(), failure);
+            closeGame("Riftwatch " + journal.to() + " could not be installed or undone.");
+            throw new UpdateException("Installing Riftwatch " + journal.to() + " failed and could not be undone: " + UpdateException.describe(failure), failure);
+        }
+    }
+
+    private void closeGame(String reason) {
+        display.message(reason + " The game closes so it never starts with mixed files. Close other programs that may hold Riftwatch files, then press Play again.");
+        countDownAndExit();
+    }
+
     private void restartForServiceJars(PackVersion version) {
         LOG.warn("Riftwatch {} changed a service jar, the game closes and needs one more start", version);
         display.message("Riftwatch " + version + " is installed. One more start finishes the update.");
+        countDownAndExit();
+    }
+
+    private void countDownAndExit() {
         Display.Bar bar = display.bar("Closing in " + restartSeconds + " s, then press Play again", Math.max(1, restartSeconds));
         for (int left = restartSeconds; left > 0; left--) {
             bar.label("Closing in " + left + " s, then press Play again");
